@@ -124,7 +124,7 @@ end
 
 
 
-function solveODE(y0::Vector{Float64}, t0::Float64, t_max::Float64, A::SparseMatrixCSC{Float64,Int64}, tol_abs::Float64=1e-6, tol_rel::Float64=1e-4)
+function solveODE(y0::Vector{Float64}, t0::Float64, t_max::Float64, A::SparseMatrixCSC{Float64,Int64}; tol_abs::Float64=1e-6, tol_rel::Float64=1e-4)
 	# tol are local error control per unit step.
 	# Didn't check the error of the last step.
 
