@@ -1,7 +1,7 @@
 module AdaptiveUtils
 using DataStructures
 export ODE_Info, log_double_h, log_halve_h, History, top_t, top_y, top, push, pop, initHistory, check, Equation
-export EquationEulerImplicit, EquationTrapezoidal, update, get_tolerance, get_min_tolerance, Tolerance
+export EquationEulerImplicit, EquationTrapezoidal, update, get_tolerance, get_min_tolerance, Tolerance, EquationAM2
 
 type ODE_Info
 	num_steps::Int
@@ -35,11 +35,13 @@ immutable History
 	# It is supposed to be a immutable data structure.
 	t::LinkedList{Float64}
 	y::LinkedList{Vector{Float64}}
+	count::Int
 end
 
 top_t(x::History) = head(x.t)
 top_y(x::History) = head(x.y)
 top(x::History) = head(x.t), head(x.y)
+# top(x) = top(x, 0)
 
 function top_t(x::History, n::Int)
 	xs = x.t
@@ -50,6 +52,9 @@ function top_t(x::History, n::Int)
 	head(xs)
 end
 
+Base.length(x::History) = x.count
+
+
 function top_y(x::History, n::Int)
 	xs = x.y
 	while n > 0
@@ -59,6 +64,7 @@ function top_y(x::History, n::Int)
 	head(xs)
 end
 
+		
 function top(x::History, n::Int)
 	ts, ys = x.t, x.y
 	while n > 0
@@ -70,13 +76,14 @@ function top(x::History, n::Int)
 end
 
 function push(x::History, t, y)
-	History(cons(t, x.t), cons(y, x.y))
+	History(cons(t, x.t), cons(y, x.y), x.count + 1)
 end
 
 function pop(x::History)
 	# Returns the remaining.
 	# Do not return the popped value.
-	History(tail(x.t), tail(x.y))
+	# Exception if failed.
+	History(tail(x.t), tail(x.y), x.count - 1)
 end
 
 
@@ -85,7 +92,7 @@ function initHistory(t::Float64, y::Vector{Float64})
 	ys = nil(Vector{Float64})
 	ts = cons(t, ts)
 	ys = cons(y, ys)
-	History(ts, ys)
+	History(ts, ys, 1)
 end
 
 
@@ -119,6 +126,26 @@ function EquationTrapezoidal(A::SparseMatrixCSC{Float64,Int64}, h::Float64)
 	EquationTrapezoidal(A, lhs, rhs_multiplier, h)
 end
 update(equation::EquationTrapezoidal, h::Float64) = EquationTrapezoidal(equation.A, h)
+
+
+immutable EquationAM2 <: Equation
+	A::SparseMatrixCSC{Float64,Int64}
+	lhs::SparseMatrixCSC{Float64,Int64}
+	rhs_multiplier_current::SparseMatrixCSC{Float64,Int64}
+	rhs_multiplier_1::SparseMatrixCSC{Float64,Int64}
+	h::Float64
+end
+
+function EquationAM2(A::SparseMatrixCSC{Float64,Int64}, h::Float64)
+	lhs = I - 5.0 / 12.0 * h * A
+	# y_current
+	rhs_multiplier_current = I + 2.0 / 3.0 * h * A
+	# y_1
+	rhs_multiplier_1 = -1.0 / 12.0 * h * A
+	EquationAM2(A, lhs, rhs_multiplier_current, rhs_multiplier_1, h)
+end
+update(equation::EquationAM2, h::Float64) = EquationAM2(equation.A, h)
+
 
 
 immutable Tolerance

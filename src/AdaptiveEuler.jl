@@ -3,7 +3,7 @@ include("core_methods.jl")
 using AdaptiveUtils
 export solveODE
 
-function double_h_Euler(y_next::Vector{Float64}, h::Float64, equation::Equation, history::History, info::ODE_Info)	
+function double_h(y_next::Vector{Float64}, h::Float64, equation::EquationEulerImplicit, history::History, info::ODE_Info)	
 	t_next = top_t(history) + h
 	history = push(history, t_next, y_next)
 	
@@ -14,13 +14,13 @@ function double_h_Euler(y_next::Vector{Float64}, h::Float64, equation::Equation,
 	h_next, equation, history
 end
 
-function good_h_Euler(y_next::Vector{Float64}, h::Float64, equation::Equation, history::History, info::ODE_Info)
+function good_h(y_next::Vector{Float64}, h::Float64, equation::EquationEulerImplicit, history::History, info::ODE_Info)
 	t_next = top_t(history) + h
 	history = push(history, t_next, y_next)
 	h, equation, history
 end
 		
-function halve_h_Euler(h::Float64, equation::Equation, history::History, info::ODE_Info)	
+function halve_h(h::Float64, equation::EquationEulerImplicit, history::History, info::ODE_Info)	
 	h_next = 0.5 * h
 	equation = update(equation, h_next)
 	t_current = top_t(history)
@@ -30,8 +30,8 @@ function halve_h_Euler(h::Float64, equation::Equation, history::History, info::O
 end
 
 
-function milne_device_Euler!(
-		y_tmp::Vector{Float64}, h::Float64, equation::Equation, history::History, tol::Tolerance
+function milne_device!(
+		y_tmp::Vector{Float64}, h::Float64, equation::EquationEulerImplicit, history::History, tol::Tolerance
 	)
 	# y_tmp is the place holder to minimize memory allocation.
 	# p_y_next can be mutable, as it is only needed inside the function.
@@ -65,26 +65,27 @@ function milne_device_Euler!(
 end
 
 
-function find_next_Euler!(
-		y_tmp::Vector{Float64}, h::Float64, equation::Equation, history::History, info::ODE_Info, tol::Tolerance
+function find_next!(
+		y_tmp::Vector{Float64}, h::Float64, equation::EquationEulerImplicit, history::History, info::ODE_Info, tol::Tolerance;
+		allow_double_h::Bool=true
 	)
 	# For each h, there is an equation.
 	# Find the next estimation, backtrack when failed.
 	info.num_steps += 1
-	flag, y_next = milne_device_Euler!(y_tmp, h, equation, history, tol)
+	flag, y_next = milne_device!(y_tmp, h, equation, history, tol)
 	adjusted_history = history
 	
 	while flag == :halve_h
 		# Backtrack to original history.
-		h, equation, adjusted_history = halve_h_Euler(h, equation, history, info)
+		h, equation, adjusted_history = halve_h(h, equation, history, info)
 		info.num_steps += 1
-		flag, y_next = milne_device_Euler!(y_tmp, h, equation, adjusted_history, tol)
+		flag, y_next = milne_device!(y_tmp, h, equation, adjusted_history, tol)
 	end
 	
-	if flag == :double_h
-		h, equation, history = double_h_Euler(y_next, h, equation, adjusted_history, info)
+	if flag == :double_h && allow_double_h
+		h, equation, history = double_h(y_next, h, equation, adjusted_history, info)
 	else
-		h, equation, history = good_h_Euler(y_next, h, equation, adjusted_history, info)
+		h, equation, history = good_h(y_next, h, equation, adjusted_history, info)
 	end
 	h, equation, history, info
 end
@@ -107,7 +108,7 @@ function solveODE(y0::Vector{Float64}, t0::Float64, t_max::Float64, A::SparseMat
 	y_tmp = copy(y0)
 	tol = Tolerance(tol_abs, tol_rel)
 	while check(h, history, t_max)
-		h, equation, history, info = find_next_Euler!(y_tmp, h, equation, history, info, tol)		
+		h, equation, history, info = find_next!(y_tmp, h, equation, history, info, tol)		
 	end
 	
 	info.num_steps += 1
