@@ -1,4 +1,4 @@
-module AdaptiveAdam3
+module AdaptiveAdams3
 include("core_methods.jl")
 using AdaptiveUtils
 import AdaptiveEuler
